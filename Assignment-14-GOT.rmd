@@ -1,0 +1,210 @@
+---
+title: "Assignment week 14"
+author: "Gruppe 2"
+date: "2024-04-03"
+output: html_document
+---
+
+Installing libraries
+```{r}
+library(here)
+library(tidyverse)
+library(pdftools)
+library(tidytext)
+library(textdata)
+library(ggwordcloud)
+```
+
+
+Coding lexicons
+```{r}
+get_sentiments(lexicon = "nrc")
+get_sentiments(lexicon = "afinn")
+```
+
+Enabling pdf
+```{r}
+got_path <- here("data","got.pdf")
+got_text <- pdf_text(got_path)
+```
+
+
+```{r}
+str(got_text)
+
+got_text
+```
+
+
+```{r}
+got_p9 <- got_text[9]
+
+got_df <- data.frame(got_text) %>%
+  mutate(text_full = str_split(got_text, pattern = '\n')) %>%
+  unnest(text_full) %>%
+  mutate(text_full = str_trim(text_full))
+
+got_df
+
+got_tokens <- got_df %>%
+  unnest_tokens(word, text_full)
+got_tokens
+```
+
+
+```{r}
+got_wc <- got_tokens %>%
+  count(word) %>%
+  arrange(-n)
+got_wc
+
+got_stop <- got_tokens %>%
+  anti_join(stop_words) %>%
+  select(-got_text)
+
+got_swc <- got_stop %>%
+  count(word) %>%
+  arrange(-n)
+```
+
+
+```{r}
+got_no_numeric <- got_stop %>%
+  filter(is.na(as.numeric(word)))
+
+length(unique(got_no_numeric$word))
+```
+
+11209 unikke ord efter wordstop
+
+```{r}
+got_top100 <- got_no_numeric %>%
+  count(word) %>%
+  arrange(-n) %>%
+  head(100)
+
+```
+
+got_cloud plotting
+
+```{r}
+got_cloud <- ggplot(data = got_top100, aes(label = word)) +
+  geom_text_wordcloud() +
+  theme_minimal()
+
+got_cloud
+```
+
+ggplotting words in color and amount of use
+```{r}
+ggplot(data = got_top100, aes(label = word, size = n)) +
+  geom_text_wordcloud_area(aes(color = n), shape = "diamond") +
+  scale_size_area(max_size = 12) +
+  scale_color_gradientn(colors = c("blue","orange","red")) +
+  theme_minimal()
+
+afinn_pos <- get_sentiments("afinn") %>%
+  filter(value %in% c(3,4,5))
+```
+
+Defining "positive" words
+```{r}
+afinn_pos
+
+get_sentiments(lexicon = "bing")
+
+
+got_afinn <- got_stop %>%
+  inner_join(get_sentiments("afinn"))
+
+```
+
+
+
+```{r}
+got_afinn_hist <- got_afinn %>%
+  count(value)
+
+ggplot(data = got_afinn_hist, aes(x = value, y = n)) +
+  geom_col()
+
+
+got_afinn2 <- got_afinn %>%
+  filter(value == 2)
+
+unique(got_afinn2$word)
+
+got_afinn2_n <- got_afinn2 %>%
+  count(word, sort = TRUE) %>%
+  mutate(word = fct_reorder(factor(word), n))
+
+ggplot(data = got_afinn2_n, aes(x = word, y = n)) +
+  geom_col() +
+  coord_flip()
+
+got_summary <- got_afinn %>%
+  summarize(
+    mean_score = mean(value),
+    median_score = median(value)
+  )
+
+```
+
+
+```{r}
+got_nrc <- got_stop %>%
+  inner_join(get_sentiments("nrc"))
+
+got_exclude <- got_stop %>%
+  anti_join(get_sentiments("nrc"))
+
+got_exclude_n <- got_exclude %>%
+  count(word, sort = TRUE)
+
+head(got_exclude_n)
+```
+
+
+```{r}
+got_nrc_n <- got_nrc %>%
+  count(sentiment, sort = TRUE)
+
+ggplot(data = got_nrc_n, aes(x = sentiment, y = n)) +
+  geom_col()
+
+got_nrc_n5 <- got_nrc %>%
+  count(word,sentiment, sort = TRUE) %>%
+  group_by(sentiment) %>%
+  top_n(5) %>%
+  ungroup()
+```
+
+
+ggplotting and reodering words in use
+```{r}
+got_nrc_gg <- ggplot(data = got_nrc_n5, aes(x = reorder(word,n), y = n, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, ncol = 2, scales = "free") +
+  coord_flip() +
+  theme_minimal() +
+  labs(x = "Word", y = "count")
+
+```
+
+got_nrc_gg in the works!
+```{r}
+got_nrc_gg
+
+ggsave(plot = got_nrc_gg,
+       here("figures","got_nrc_sentiment.png"),
+       height = 8,
+       width = 5)
+
+conf <- get_sentiments(lexicon = "nrc") %>%
+  filter(word == "confidence")
+
+conf
+
+```
+
+
